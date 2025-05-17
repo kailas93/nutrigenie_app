@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
-from gemini_api import get_meal_plan
-from ml_modell import load_and_train_model, predict_healthiness
-from weather_api import get_location_and_weather
 import matplotlib.pyplot as plt
+import re
+
+from gemini_api import get_meal_plan
+from weather_api import get_location_and_weather
 
 st.set_page_config(page_title="NutriGenie – AI Nutrition Assistant", layout="centered")
 st.title("🥗 NutriGenie – Your Smartest AI Nutrition Coach")
@@ -31,6 +32,16 @@ city, weather = get_location_and_weather()
 st.markdown(f"📍 **Location**: {city}")
 st.markdown(f"🌤 **Weather**: {weather['condition']} | 🌡 Temp: {weather['temp']}°C")
 
+# --- Meal Plan Parsing ---
+def extract_items_by_meal(plan_text, meal_name):
+    pattern = re.compile(rf"{meal_name}:(.*?)(?:\n\n|\Z)", re.IGNORECASE | re.DOTALL)
+    match = pattern.search(plan_text)
+    if match:
+        items = match.group(1).split('\n')
+        return [item.strip("•- ").strip() for item in items if item.strip()]
+    return []
+
+
 # --- Generate Gemini Meal Plan ---
 if st.button("🍽 Generate Personalized Meal Plan"):
     prompt = f"""
@@ -44,35 +55,4 @@ if st.button("🍽 Generate Personalized Meal Plan"):
     st.subheader("📝 Personalized Meal Plan")
     st.write(plan)
 
-# --- Health Analysis using ML Model ---
-st.header("📊 Nutrient Analyzer")
-st.markdown("Enter your meal’s nutritional details to analyze its health impact.")
-
-col1, col2 = st.columns(2)
-with col1:
-    cal = st.number_input("Calories (kcal)", 0, 1000, 300)
-    protein = st.number_input("Protein (g)", 0.0, 100.0, 20.0)
-    carbs = st.number_input("Carbs (g)", 0.0, 150.0, 40.0)
-    fat = st.number_input("Fat (g)", 0.0, 100.0, 10.0)
-    fiber = st.number_input("Fiber (g)", 0.0, 50.0, 5.0)
-with col2:
-    sugar = st.number_input("Sugar (g)", 0.0, 100.0, 10.0)
-    sodium = st.number_input("Sodium (mg)", 0, 3000, 700)
-    chol_mg = st.number_input("Cholesterol (mg)", 0, 500, 100)
-    water = st.number_input("Water Intake (ml)", 0, 3000, 500)
-
-if st.button("🧠 Analyze Meal"):
-    model, scaler = load_and_train_model()
-    input_data = [cal, protein, carbs, fat, fiber, sugar, sodium, chol_mg, water]
-    label = predict_healthiness(model, scaler, input_data)
     
-    st.success(f"🔍 Prediction: **{label}**")
-
-    # Pie chart
-    labels = ['Protein', 'Carbs', 'Fat']
-    sizes = [protein, carbs, fat]
-    colors = ['#6ab04c', '#f0932b', '#eb4d4b']
-    fig, ax = plt.subplots()
-    ax.pie(sizes, labels=labels, colors=colors, autopct="%1.1f%%")
-    ax.set_title("Macronutrient Breakdown")
-    st.pyplot(fig)
